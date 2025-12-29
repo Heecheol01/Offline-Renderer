@@ -1,0 +1,38 @@
+# --- Build Directories (CMake & Visual Studio) ---
+build/
+out/
+bin/
+lib/
+
+# --- Visual Studio Specific ---
+.vs/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.suo
+*.user
+*.idb
+*.pdb
+*.ipch
+*.tlog
+
+# --- Compiled Object files & Executables ---
+*.exe
+*.obj
+*.lib
+*.dll
+*.iso
+*.a
+*.o
+
+# --- CMake Specific ---
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+install_manifest.txt
+Makefile
+
+# --- OS Specific ---
+.DS_Store
+Thumbs.db
