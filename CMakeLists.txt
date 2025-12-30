@@ -7,8 +7,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_library(renderer_core
   src/core/dummy.cpp
   src/film/film.cpp
+  src/integrator/path_trace_mis.cpp
   src/io/write_image.cpp
   src/scene/camera.cpp
+  src/util/render_progress.cpp
 )
 
 target_include_directories(renderer_core PUBLIC

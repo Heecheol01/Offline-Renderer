@@ -50,7 +50,7 @@ namespace COR {
 			lightIds.clear();
 			for (int i = 0; i < (int)objects.size(); ++i) {
 				int mid = objects[i]->materialId;
-				if (mid >= 0 && mid <= (int)materials.size()) {
+				if (mid >= 0 && mid < (int)materials.size()) {
 					if (materials[mid].type == MaterialType::Emissive)
 						lightIds.push_back(i);
 				}
