@@ -7,6 +7,11 @@
 namespace COR {
 	struct Vec3 {
 		float x = 0.0f, y = 0.0f, z = 0.0f;
+
+		Vec3() : x(0), y(0), z(0) {};
+		Vec3(float s) : x(s), y(s), z(s) {};
+		Vec3(float a, float b, float c) : x(a), y(b), z(c) {};
+
 		// ctor
 		Vec3 operator+(const Vec3& r) const { return Vec3{ x + r.x, y + r.y, z + r.z }; }
 		Vec3 operator-(const Vec3& r) const { return Vec3{ x - r.x, y - r.y, z - r.z }; }
@@ -15,6 +20,8 @@ namespace COR {
 
 		Vec3& operator+=(const Vec3& r) { x += r.x; y += r.y; z += r.z; return *this; }
 		Vec3& operator*=(float s) { x *= s; y *= s; z *= s; return *this; }
+
+		Vec3& norm() { return *this = *this * (1 / std::sqrt(x * x + y * y + z * z)); }
 	};
 
 	inline Vec3 operator*(float s, const Vec3& v) { return v * s; }

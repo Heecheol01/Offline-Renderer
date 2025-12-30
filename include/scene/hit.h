@@ -7,11 +7,11 @@
 
 namespace COR {
 	struct HitRecord {
-		Vec3 p;
-		Vec3 n;
-		Vec3 albedo{ 1.0f, 1.0f, 1.0f };
-		float t = 0.0f;
+		Vec3 p;				// hit position
+		Vec3 n;				// shading normal
+		float t = 0.0f;		// ray parameter
 		bool frontFace = true;
+		int materialId = -1;
 
 		void setFaceNormal(const Ray& r, const Vec3& outwardNormal) {
 			frontFace = dot(r.d, outwardNormal) < 0.0f;

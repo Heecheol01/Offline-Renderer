@@ -63,4 +63,10 @@ namespace COR {
 		v = splitmix64(v ^ userSeed);
 		return v;
 	}
+
+	static inline uint64_t makeSeed2(uint32_t x, uint32_t y, uint32_t s) {
+		uint64_t v = (uint64_t)x | ((uint64_t)y << 32);
+		v ^= (uint64_t)s * 0x9e3779b97f4a7c15ull;
+		return splitmix64(v);
+	}
 }
