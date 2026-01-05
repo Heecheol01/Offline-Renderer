@@ -35,4 +35,23 @@ namespace COR {
 
 	inline float clamp01(float x) { return (x < 0.0f) ? 0.0f : (x > 1.0f) ? 1.0f : x; }
 	inline float clamp(float x, float a, float b) { return (x < a) ? a : (x > b) ? b : x; }
+
+	struct Vec2 {
+		float x = 0.0f, y = 0.0f;
+
+		Vec2() : x(0), y(0) {};
+		Vec2(float s) : x(s), y(s) {};
+		Vec2(float a, float b) : x(a), y(b) {};
+
+		Vec2 operator+(const Vec2& r) const { return Vec2{ x + r.x, y + r.y }; }
+		Vec2 operator-(const Vec2& r) const { return Vec2{ x - r.x, y - r.y }; }
+		Vec2 operator-(void) const { return Vec2{ -x, -y}; }
+		Vec2 operator*(float s) const { return Vec2{ x * s, y * s }; }
+		Vec2 operator/(float s) const { return Vec2{ x / s, y / s }; }
+		   
+		Vec2& operator+=(const Vec3& r) { x += r.x; y += r.y; return *this; }
+		Vec2& operator*=(float s) { x *= s; y *= s; return *this; }
+		   
+		Vec2& norm() { return *this = *this * (1 / std::sqrt(x * x + y * y)); }
+	};
 }

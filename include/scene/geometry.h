@@ -7,18 +7,19 @@
 #include "scene/hit.h"
 #include "core/rng.h"
 #include "core/random.h"
+#include "scene/aabb.h"
 #include <cmath>
 
 namespace COR {
     static constexpr float PI = 3.1415926535f;
 
-    struct Hittable {
-        int materialId = -1;
-        virtual ~Hittable() = default;
+    struct Shape {
+        virtual ~Shape() = default;
 
         // ray-geometry intersect
         virtual bool intersect(const Ray& r, float tMin, float tMax, HitRecord& rec) const = 0;
 
+        virtual bool bounds(AABB& out) const = 0;
         // surface area
         virtual float area() const { return 0.0f; }
 
@@ -29,11 +30,11 @@ namespace COR {
         }
     };
 
-    struct Sphere final : public Hittable {
+    struct Sphere final : public Shape {
         Vec3 center;
         float radius = 1.0f;
 
-        Sphere(const Vec3& c, float r, int mid) : center(c), radius(r) { materialId = mid; }
+        Sphere(const Vec3& c, float r) : center(c), radius(r) {}
 
         bool intersect(const Ray& r, float tMin, float tMax, HitRecord& rec) const override {
             // Quadratic: |o + t * d - c|^2 = R^2
@@ -57,7 +58,12 @@ namespace COR {
 
             Vec3 outward = (rec.p - center) / radius;
             rec.setFaceNormal(r, outward);
-            rec.materialId = materialId;
+            return true;
+        }
+
+        bool bounds(AABB& out) const override {
+            out.mn = center - Vec3(radius);
+            out.mx = center + Vec3(radius);
             return true;
         }
 
@@ -76,7 +82,7 @@ namespace COR {
         }
     };
 
-    struct Quad final : Hittable {
+    struct Quad final : Shape {
         Vec3 q;
         Vec3 u, v;
         Vec3 n;
@@ -84,10 +90,8 @@ namespace COR {
         float uu = 0.0f, uv = 0.0f, vv = 0.0f;
         float det = 0.0f;
 
-        Quad(const Vec3& corner, const Vec3& edgeU, const Vec3& edgeV, int mid) : q(corner), u(edgeU), v(edgeV) 
+        Quad(const Vec3& corner, const Vec3& edgeU, const Vec3& edgeV) : q(corner), u(edgeU), v(edgeV) 
         {
-            materialId = mid;
-
             n = normalize(cross(u, v));
 
             uu = dot(u, u);
@@ -123,7 +127,20 @@ namespace COR {
             rec.t = t;
             rec.p = p;
             rec.setFaceNormal(r, n);
-            rec.materialId = materialId;
+            return true;
+        }
+
+        bool bounds(AABB& out) const override {
+            out = AABB{};
+            Vec3 p0 = q;
+            Vec3 p1 = q + u;
+            Vec3 p2 = q + v;
+            Vec3 p3 = q + u + v;
+            out.expand(p0); out.expand(p1); out.expand(p2); out.expand(p3);
+
+            const float eps = 1e-6f;
+            out.mn = out.mn - Vec3(eps);
+            out.mx = out.mx + Vec3(eps);
             return true;
         }
 

@@ -5,12 +5,16 @@
 #include <vector>
 #include <memory>
 
+#include "accel/bvh.h"
 #include "scene/geometry.h"
 #include "scene/material.h"
 #include "scene/hit.h"
+#include "scene/primitive.h"
+#include "scene/triangle_ref.h"
 #include "core/ray.h"
 
 namespace COR {
+
 	struct LightSample {
 		Vec3 wi;		// direction
 		float dist;		// distance
@@ -19,23 +23,28 @@ namespace COR {
 	};
 
 	struct World {
-		std::vector<std::unique_ptr<Hittable>> objects;
+		std::vector<std::unique_ptr<Primitive>> primitives;
 		std::vector<Material> materials;
 
 		std::vector<int> lightIds;
 
-		template <class T, class... Args>
-		void add(Args&&... args) {
-			objects.emplace_back(std::make_unique<T>(std::forward<Args>(args)...));
+		std::unique_ptr<Primitive> accel;
+
+		template <class ShapeT, class... Args>
+		void addShape(int materialId, Args&&... args) {
+			auto s = std::make_shared<ShapeT>(std::forward<Args>(args)...);
+			primitives.emplace_back(std::make_unique<GeometricPrimitive>(std::move(s), materialId));
 		}
 
 		bool intersect(const Ray& r, float tMin, float tMax, HitRecord& rec) const {
+			if (accel) return accel->intersect(r, tMin, tMax, rec);
+
 			HitRecord tmp;
 			bool hitAnything = false;
 			float closest = tMax;
 
-			for (const auto& obj : objects) {
-				if (obj->intersect(r, tMin, closest, tmp)) {
+			for (const auto& p : primitives) {
+				if (p->intersect(r, tMin, closest, tmp)) {
 					hitAnything = true;
 					closest = tmp.t;
 					rec = tmp;
@@ -48,8 +57,8 @@ namespace COR {
 		// Build light list by scanning spheres whose material is emissive
 		void buildLightList() {
 			lightIds.clear();
-			for (int i = 0; i < (int)objects.size(); ++i) {
-				int mid = objects[i]->materialId;
+			for (int i = 0; i < (int)primitives.size(); ++i) {
+				int mid = primitives[i]->materialId();
 				if (mid >= 0 && mid < (int)materials.size()) {
 					if (materials[mid].type == MaterialType::Emissive)
 						lightIds.push_back(i);
@@ -73,13 +82,16 @@ namespace COR {
 			int pick = (int)(rng.nextFloat01() * nLights);
 			if (pick >= nLights) pick = nLights - 1;
 
-			const Hittable* light = objects[lightIds[pick]].get();
-			const Material& m = materials[light->materialId];
+			const Primitive* lightPrim = primitives[lightIds[pick]].get();
+			const Shape* lightShape = lightPrim->shape();
+			if (!lightShape) return ls;
+
+			const Material& m = materials[lightPrim->materialId()];
 
 			// Sample a point uniformly on sphere surface
 			Vec3 xL, nL;
 			float pdf_area = 0.0f;
-			if (!light->sampleSurface(rng, xL, nL, pdf_area) || pdf_area <= 0.0f)
+			if (!lightShape->sampleSurface(rng, xL, nL, pdf_area) || pdf_area <= 0.0f)
 				return ls;
 
 			Vec3 toL = xL - p;
@@ -125,12 +137,15 @@ namespace COR {
 			Ray r{ p,dir };
 
 			for (int idx : lightIds) {
-				const Hittable* light = objects[idx].get();
-				float A = light->area();
+				const Primitive* lightPrim = primitives[idx].get();
+				const Shape* lightShape = lightPrim->shape();
+				if (!lightShape) continue;
+
+				float A = lightShape->area();
 				if (A <= 0.0f) continue;
 
 				HitRecord lr;
-				if (!light->intersect(r, 0.001f, 1e30f, lr)) continue;
+				if (!lightShape->intersect(r, 0.001f, 1e30f, lr)) continue;
 
 				float dist2 = lr.t * lr.t;
 
@@ -144,6 +159,27 @@ namespace COR {
 			}
 
 			return sum * (1.0f / (float)lightIds.size());
+		}
+
+		void buildBVH(int leafSize = 4) {
+			std::vector<Primitive*> ptrs;
+			ptrs.reserve(primitives.size());
+			for (auto& p : primitives) ptrs.push_back(p.get());
+
+			accel = std::make_unique<BVHAccel>(std::move(ptrs), leafSize);
+		}
+
+		void addMeshAsTriangles(int materialId, MeshData&& md) {
+			auto storage = std::make_shared<MeshStorage>();
+			storage->data = std::move(md);
+
+			const uint32_t nTris = (uint32_t)storage->data.indices.size();
+			primitives.reserve(primitives.size() + nTris);
+
+			for (uint32_t i = 0; i < nTris; ++i) {
+				auto triShape = std::make_shared<TriangleRef>(storage, i);
+				primitives.emplace_back(std::make_unique<GeometricPrimitive>(triShape, materialId));
+			}
 		}
 	};
 }

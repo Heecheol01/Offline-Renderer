@@ -13,10 +13,13 @@
 #include "integrator/path_trace_mis.h"
 #include "integrator/wavefront.h"
 
+#include "io/obj_loader.h"
+#include "scene/mesh.h"
+
 #include <iostream>
 
 int main() {
-    const int W = 1024, H = 768, SPP = 256;
+    const int W = 512, H = 384, SPP = 512;
 
     COR::Film film(W, H);
     float aspect = float(W) / float(H);
@@ -30,7 +33,7 @@ int main() {
 
     COR::World world;
 
-    // Materials
+    // Cornell Box Materials (0~5)
     COR::Material left;
     left.type = COR::MaterialType::Lambert;
     left.albedo = COR::Vec3{ 0.75f, 0.25f, 0.25f };
@@ -61,55 +64,87 @@ int main() {
     light.emission = COR::Vec3{ 12.0f };
     world.materials.push_back(light);     //id = 5
 
-    COR::Material glass;
-    glass.type = COR::MaterialType::Dielectric;
-    glass.albedo = COR::Vec3{ 1.f, 1.f, 1.f } * 0.999f;
-    world.materials.push_back(glass);     //id = 6
+    // NEW: bunny / teapot materials (6,7)
+    COR::Material bunnyMat;
+    bunnyMat.type = COR::MaterialType::Lambert;
+    bunnyMat.albedo = COR::Vec3{ 0.85f, 0.85f, 0.85f };
+    world.materials.push_back(bunnyMat);  //id = 6
 
-    COR::Material metal;
-    metal.type = COR::MaterialType::Metal;
-    metal.albedo = COR::Vec3{ 1.f, 1.f, 1.f } *0.999f;
-    world.materials.push_back(metal);     //id = 7
+    COR::Material teapotMat;
+    teapotMat.type = COR::MaterialType::Lambert;
+    teapotMat.albedo = COR::Vec3{ 0.85f, 0.80f, 0.70f };
+    world.materials.push_back(teapotMat); //id = 7
 
-    world.add<COR::Quad>(
-        COR::Vec3{ -1.0f, -1.0f, -1.0f },                                            // left
+    // Cornell box geometry
+    world.addShape<COR::Quad>(                  // left
+        0,
+        COR::Vec3{ -1.0f, -1.0f, -1.0f },
         COR::Vec3{ 0.0f, 0.0f, -2.0f },
-        COR::Vec3{ 0.0f, 2.0f, 0.0f },
-        0);
-    world.add<COR::Quad>(                                                   // right
+        COR::Vec3{ 0.0f, 2.0f, 0.0f });
+
+    world.addShape<COR::Quad>(                  // right
+        1, 
         COR::Vec3{ 1.0f, -1.0f, -3.0f },
         COR::Vec3{ 0.0f, 0.0f, 2.0f },
-        COR::Vec3{ 0.0f, 2.0f, 0.0f },
-        1);
-    world.add<COR::Quad>(                                                   // back
+        COR::Vec3{ 0.0f, 2.0f, 0.0f });
+
+    world.addShape<COR::Quad>(                  // back
+        2,
         COR::Vec3{ -1.0f, -1.0f, -3.0f },
         COR::Vec3{ 2.0f, 0.0f, 0.0f },
-        COR::Vec3{ 0.0f, 2.0f, 0.0f },
-        2);       
-    world.add<COR::Quad>(                                                   // floor
+        COR::Vec3{ 0.0f, 2.0f, 0.0f });
+
+    world.addShape<COR::Quad>(                  // floor
+        3,
         COR::Vec3{ -1.0f, -1.0f, -1.0f },
         COR::Vec3{ 2.0f, 0.0f, 0.0f },
-        COR::Vec3{ 0.0f, 0.0f, -2.0f },
-        3);
-    world.add<COR::Quad>(                                                   // ceiling
+        COR::Vec3{ 0.0f, 0.0f, -2.0f });
+
+    world.addShape<COR::Quad>(                  // ceiling
+        4,
         COR::Vec3{ -1.0f, 1.0f, -3.0f },
         COR::Vec3{ 2.0f, 0.0f, 0.0f },
-        COR::Vec3{ 0.0f, 0.0f, 2.0f },
-        4);
-    world.add<COR::Quad>(                                                 // light
+        COR::Vec3{ 0.0f, 0.0f, 2.0f });
+
+    world.addShape<COR::Quad>(                  // light
+        5,
         COR::Vec3{ -0.25f, 0.99f, -2.25f },
         COR::Vec3{ 0.5f, 0.0f, 0.0f },
-        COR::Vec3{ 0.0f, 0.0f, 0.5f },
-        5);
-    world.add<COR::Sphere>(COR::Vec3{ -0.4f, -0.6f, -2.2f }, 0.4f, 6);      // glass
-    world.add<COR::Sphere>(COR::Vec3{ 0.5f, -0.6f, -1.8f }, 0.4f, 7);       // metal
+        COR::Vec3{ 0.0f, 0.0f, 0.5f });
+
+    {
+        COR::MeshData bunny;
+        COR::ObjLoadOptions opt;
+        opt.triangulate = true;
+        opt.scale = 3.f;
+        opt.translate = COR::Vec3{ -0.4f, -1.0f, -2.2f };
+
+        if (!COR::LoadObjMesh("C:\\KHC\\OfflineRenderer\\assets\\stanford-bunny.obj", bunny, opt)) {
+            std::cerr << "Failed to load assets/bunny.obj\n";
+            return 1;
+        }
+        world.addMeshAsTriangles(6, std::move(bunny));
+    }
+
+    {
+        COR::MeshData teapot;
+        COR::ObjLoadOptions opt;
+        opt.triangulate = true;
+        opt.scale = 0.1f;
+        opt.translate = COR::Vec3{ 0.5f, -1.0f, -1.8f };
+
+        if (!COR::LoadObjMesh("C:\\KHC\\OfflineRenderer\\assets\\teapot.obj", teapot, opt)) {
+            std::cerr << "Failed to load assets/teapot.obj\n";
+            return 1;
+        }
+        world.addMeshAsTriangles(7, std::move(teapot));
+    }
 
     world.buildLightList();
+    world.buildBVH(4);
 
     const int maxDepth = 100;
-
     COR::RenderProgress prog(W, H, SPP);
-
     const int tileSize = 32;
 
     for (int ty = 0; ty < H; ty += tileSize) {
@@ -132,7 +167,7 @@ int main() {
 
     prog.done();
 
-    const bool ok = COR::writePPM("wavefront_cpu_256.ppm", film, /*flipY=*/true, /*gamma=*/2.2f);
+    const bool ok = COR::writePPM("test2.ppm", film, /*flipY=*/true, /*gamma=*/2.2f);
     if (!ok) {
         std::cerr << "Failed to write out.ppm\n";
         return 1;

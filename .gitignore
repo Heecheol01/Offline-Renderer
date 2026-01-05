@@ -3,6 +3,7 @@ build/
 out/
 bin/
 lib/
+output/
 
 # --- Visual Studio Specific ---
 .vs/
