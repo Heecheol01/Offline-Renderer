@@ -16,8 +16,12 @@ namespace COR {
 			u = cross(v, w);
 		}
 
-		Vec3 local(float a, float b, float c) const {
+		Vec3 localToWorld(float a, float b, float c) const {
 			return u * a + v * b + w * c;
+		}
+		
+		Vec3 localToWorld(Vec3& a) const {
+			return u * a.x + v * a.y + w * a.z;
 		}
 	};
 }

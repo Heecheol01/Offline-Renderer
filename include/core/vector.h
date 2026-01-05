@@ -15,6 +15,7 @@ namespace COR {
 		// ctor
 		Vec3 operator+(const Vec3& r) const { return Vec3{ x + r.x, y + r.y, z + r.z }; }
 		Vec3 operator-(const Vec3& r) const { return Vec3{ x - r.x, y - r.y, z - r.z }; }
+		Vec3 operator-(void) const { return Vec3{ -x, -y, -z }; }
 		Vec3 operator*(float s) const { return Vec3{ x * s, y * s, z * s }; }
 		Vec3 operator/(float s) const { return Vec3{ x / s, y / s, z / s }; }
 

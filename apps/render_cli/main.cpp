@@ -11,11 +11,12 @@
 #include "scene/world.h"
 #include "util/render_progress.h"
 #include "integrator/path_trace_mis.h"
+#include "integrator/wavefront.h"
 
 #include <iostream>
 
 int main() {
-    const int W = 1024, H = 768, SPP = 32;
+    const int W = 1024, H = 768, SPP = 256;
 
     COR::Film film(W, H);
     float aspect = float(W) / float(H);
@@ -70,39 +71,35 @@ int main() {
     metal.albedo = COR::Vec3{ 1.f, 1.f, 1.f } *0.999f;
     world.materials.push_back(metal);     //id = 7
 
-    const float x0 = -1.0f, x1 = 1.0f;
-    const float y0 = -1.0f, y1 = 1.0f;
-    const float z0 = -3.0f, z1 = -1.0f;
-
     world.add<COR::Quad>(
-        COR::Vec3{ x0, y0, z1 },                                            // left
-        COR::Vec3{ 0, 0, z0 - z1 },
-        COR::Vec3{ 0, y1 - y0, 0 },
+        COR::Vec3{ -1.0f, -1.0f, -1.0f },                                            // left
+        COR::Vec3{ 0.0f, 0.0f, -2.0f },
+        COR::Vec3{ 0.0f, 2.0f, 0.0f },
         0);
     world.add<COR::Quad>(                                                   // right
-        COR::Vec3{ x1, y0, z0 },
-        COR::Vec3{ 0, 0, z1 - z0 },
-        COR::Vec3{ 0, y1 - y0, 0 },
+        COR::Vec3{ 1.0f, -1.0f, -3.0f },
+        COR::Vec3{ 0.0f, 0.0f, 2.0f },
+        COR::Vec3{ 0.0f, 2.0f, 0.0f },
         1);
     world.add<COR::Quad>(                                                   // back
-        COR::Vec3{ x0, y0, z0 },
-        COR::Vec3{ x1 - x0, 0, 0 },
-        COR::Vec3{ 0, y1 - y0, 0 },
+        COR::Vec3{ -1.0f, -1.0f, -3.0f },
+        COR::Vec3{ 2.0f, 0.0f, 0.0f },
+        COR::Vec3{ 0.0f, 2.0f, 0.0f },
         2);       
     world.add<COR::Quad>(                                                   // floor
-        COR::Vec3{ x0, y0, z1 },
-        COR::Vec3{ x1 - x0, 0, 0 },
-        COR::Vec3{ 0, 0, z0 - z1 },
+        COR::Vec3{ -1.0f, -1.0f, -1.0f },
+        COR::Vec3{ 2.0f, 0.0f, 0.0f },
+        COR::Vec3{ 0.0f, 0.0f, -2.0f },
         3);
     world.add<COR::Quad>(                                                   // ceiling
-        COR::Vec3{ x0, y1, z0 },
-        COR::Vec3{ x1 - x0, 0, 0 },
-        COR::Vec3{ 0, 0, z1 - z0 },
+        COR::Vec3{ -1.0f, 1.0f, -3.0f },
+        COR::Vec3{ 2.0f, 0.0f, 0.0f },
+        COR::Vec3{ 0.0f, 0.0f, 2.0f },
         4);
     world.add<COR::Quad>(                                                 // light
         COR::Vec3{ -0.25f, 0.99f, -2.25f },
-        COR::Vec3{ 0.5f, 0, 0 },
-        COR::Vec3{ 0, 0, 0.5f },
+        COR::Vec3{ 0.5f, 0.0f, 0.0f },
+        COR::Vec3{ 0.0f, 0.0f, 0.5f },
         5);
     world.add<COR::Sphere>(COR::Vec3{ -0.4f, -0.6f, -2.2f }, 0.4f, 6);      // glass
     world.add<COR::Sphere>(COR::Vec3{ 0.5f, -0.6f, -1.8f }, 0.4f, 7);       // metal
@@ -113,27 +110,29 @@ int main() {
 
     COR::RenderProgress prog(W, H, SPP);
 
-    for (int y = 0; y < H; ++y) {
-        for (int x = 0; x < W; ++x) {
+    const int tileSize = 32;
+
+    for (int ty = 0; ty < H; ty += tileSize) {
+        for (int tx = 0; tx < W; tx += tileSize) {
+            int x0 = tx, y0 = ty;
+            int x1 = std::min(tx + tileSize, W);
+            int y1 = std::min(ty + tileSize, H);
+
             for (int s = 0; s < SPP; ++s) {
-                uint64_t seed = COR::makeSeed2((uint32_t)x, (uint32_t)y, (uint32_t)s);
-                COR::RNG rng(seed, 1);
+                COR::render_tile_wavefront_sample(
+                    film, cam, world,
+                    W, H,
+                    x0, y0, x1, y1,
+                    s, maxDepth);
 
-                float u = (float(x) + rng.nextFloat01()) / float(W - 1);
-                float v = (float(y) + rng.nextFloat01()) / float(H - 1);
-
-                COR::Ray r = cam.getRay(u, v);
-                COR::Vec3 c = COR::trace_path_mis(r, world, rng, maxDepth);
-                film.addSample(x, y, c);
-
-                prog.addSamples(1);
+                prog.addSamples((long long)(x1 - x0) * (long long)(y1 - y0));
             }
         }
     }
 
     prog.done();
 
-    const bool ok = COR::writePPM("test.ppm", film, /*flipY=*/true, /*gamma=*/2.2f);
+    const bool ok = COR::writePPM("wavefront_cpu_256.ppm", film, /*flipY=*/true, /*gamma=*/2.2f);
     if (!ok) {
         std::cerr << "Failed to write out.ppm\n";
         return 1;

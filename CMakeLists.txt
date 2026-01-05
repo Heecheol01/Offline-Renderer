@@ -8,8 +8,11 @@ add_library(renderer_core
   src/core/dummy.cpp
   src/film/film.cpp
   src/integrator/path_trace_mis.cpp
+  src/integrator/wavefront.cpp
   src/io/write_image.cpp
+  src/io/load_obj.cpp
   src/scene/camera.cpp
+  src/scene/material.cpp
   src/util/render_progress.cpp
 )
 

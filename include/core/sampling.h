@@ -21,7 +21,7 @@ namespace COR {
 
 		ONB onb;
 		onb.buildFromW(n);
-		return normalize(onb.local(x, y, z));
+		return normalize(onb.localToWorld(x, y, z));
 	}
 
 	// Lambert cosine pdf w.r.t. solid angle

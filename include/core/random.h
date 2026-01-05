@@ -33,11 +33,14 @@ namespace COR {
 	}
 
 	// Snell's Law
-	inline Vec3 refract(const Vec3& uv, const Vec3& n, float etai_over_etat) {
+	inline bool refract(const Vec3& uv, const Vec3& n, float etai_over_etat, Vec3& out) {
 		float cosTheta = std::fmin(dot(uv * -1.0f, n), 1.0f);
 		Vec3 rOutPerp = (uv + n * cosTheta) * etai_over_etat;
-		Vec3 rOutParallel = n * -std::sqrt(std::fabs(1.0f - dot(rOutPerp, rOutPerp)));
-		return rOutPerp + rOutParallel;
+		float k = 1.0f - dot(rOutPerp, rOutPerp);
+		if (k < 0.0f) return false;
+		Vec3 rOutParallel = n * (-std::sqrt(k));
+		out = rOutPerp + rOutParallel;
+		return true;
 	}
 
 	// Schlick approximation for Fresnel refelctance
