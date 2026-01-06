@@ -19,7 +19,7 @@
 #include <iostream>
 
 int main() {
-    const int W = 512, H = 384, SPP = 512;
+    const int W = 512, H = 384, SPP = 1024;
 
     COR::Film film(W, H);
     float aspect = float(W) / float(H);
@@ -119,7 +119,7 @@ int main() {
         opt.scale = 3.f;
         opt.translate = COR::Vec3{ -0.4f, -1.0f, -2.2f };
 
-        if (!COR::LoadObjMesh("C:\\KHC\\OfflineRenderer\\assets\\stanford-bunny.obj", bunny, opt)) {
+        if (!COR::LoadObjMesh("C:\\KHC\\OfflineRenderer\\common\\assets\\stanford-bunny.obj", bunny, opt)) {
             std::cerr << "Failed to load assets/bunny.obj\n";
             return 1;
         }
@@ -133,7 +133,7 @@ int main() {
         opt.scale = 0.1f;
         opt.translate = COR::Vec3{ 0.5f, -1.0f, -1.8f };
 
-        if (!COR::LoadObjMesh("C:\\KHC\\OfflineRenderer\\assets\\teapot.obj", teapot, opt)) {
+        if (!COR::LoadObjMesh("C:\\KHC\\OfflineRenderer\\common\\assets\\teapot.obj", teapot, opt)) {
             std::cerr << "Failed to load assets/teapot.obj\n";
             return 1;
         }
@@ -167,7 +167,7 @@ int main() {
 
     prog.done();
 
-    const bool ok = COR::writePPM("test2.ppm", film, /*flipY=*/true, /*gamma=*/2.2f);
+    const bool ok = COR::writePPM("1024.ppm", film, /*flipY=*/true, /*gamma=*/2.2f);
     if (!ok) {
         std::cerr << "Failed to write out.ppm\n";
         return 1;
