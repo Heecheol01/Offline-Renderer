@@ -5,7 +5,7 @@
 
 #include "film/film.h"
 #include "scene/camera.h"
-#include "scene/world.h"
+#include "scene/scene.h"
 #include "scene/hit.h"
 #include "scene/material.h"
 
@@ -70,6 +70,7 @@ namespace {
 		std::vector<COR::Vec3> p;
 		std::vector<COR::Vec3> n;
 		std::vector<int> materialId;
+		std::vector<uint8_t> eventType;
 
 		void resize(size_t k) {
 			hitFlag.resize(k);
@@ -77,6 +78,7 @@ namespace {
 			p.resize(k);
 			n.resize(k);
 			materialId.resize(k);
+			eventType.resize(k);
 		}
 	};
 
@@ -93,11 +95,18 @@ namespace {
 		}
 	};
 
+	static float medium_segment_length(const COR::AABB& box, const COR::Ray& r, float tMin, float tMax) {
+		float te, tx;
+		if (!box.intersectRange(r, tMin, tMax, te, tx)) return 0.0f;
+		float len = tx - te;
+		return (len > 0.0f) ? len : 0.0f;
+	}
+
 	// ----------------------------
 	// SoA Helpers
 	// ----------------------------
 	static void intersect_stage(
-		const COR::World& world,
+		const COR::Scene& scene,
 		const PathSoA& paths,
 		HitSoA& hits,
 		const std::vector<int>& active,
@@ -116,7 +125,7 @@ namespace {
 			COR::Ray r{ paths.rayO[i], paths.rayD[i] };
 
 			COR::HitRecord rec;
-			if (world.intersect(r, EPS, 1e30f, rec)) {
+			if (scene.intersect(r, EPS, 1e30f, rec)) {
 				hits.hitFlag[i] = 1;
 				hits.t[i] = rec.t;
 				hits.p[i] = rec.p;
@@ -131,6 +140,101 @@ namespace {
 		}
 	}
 
+	static void medium_stage(
+		const COR::Scene& scene,
+		PathSoA& paths,
+		HitSoA& hits,
+		const std::vector<int>& active,
+		std::vector<int>& surfaceList,
+		std::vector<int>& mediumList,
+		std::vector<int>& missListFinal
+	) {
+		surfaceList.clear();
+		mediumList.clear();
+		missListFinal.clear();
+
+		if (!scene.hasMedium()) {
+			for (int i : active) {
+				if (!paths.alive[i]) { hits.eventType[i] = 0; missListFinal.push_back(i); continue; }
+				if (hits.hitFlag[i]) { hits.eventType[i] = 1; surfaceList.push_back(i); }
+				else { hits.eventType[i] = 0; missListFinal.push_back(i); }
+			}
+			return;
+		}
+
+		const COR::HomogeneousMedium& med = *scene.medium;
+
+		const float sigmaT = med.sigma_t.x;
+		if (sigmaT <= 0.0f) {
+			for (int i : active) {
+				if (!paths.alive[i]) { hits.eventType[i] = 0; missListFinal.push_back(i); }
+				if (hits.hitFlag[i]) { hits.eventType[i] = 1; surfaceList.push_back(i); }
+				else { hits.eventType[i] = 0; missListFinal.push_back(i); }
+			}
+			return;
+		}
+
+		for (int i : active) {
+			if (!paths.alive[i]) { hits.eventType[i] = 0; missListFinal.push_back(i); }
+
+			COR::Ray r{ paths.rayO[i], paths.rayD[i] };
+
+			float tSurf = hits.hitFlag[i] ? hits.t[i] : 1e30f;
+
+			float tEnter, tExit;
+			bool inMed = scene.mediumBounds.intersectRange(r, EPS, tSurf, tEnter, tExit);
+			if (!inMed) {
+				if (hits.hitFlag[i]) { hits.eventType[i] = 1; surfaceList.push_back(i); }
+				else { hits.eventType[i] = 0; missListFinal.push_back(i); }
+				continue;
+			}
+
+			float segLen = tExit - tEnter;
+			if (segLen <= 0.0f) {
+				if (hits.hitFlag[i]) { hits.eventType[i] = 1; surfaceList.push_back(i); }
+				else { hits.eventType[i] = 0; missListFinal.push_back(i); }
+				continue;
+			}
+
+			float u = paths.rng[i].nextFloat01();
+			if (u < 1e-6f) u = 1e-6f;
+			float tSample = -std::log(u) / sigmaT;
+
+			if (tSample < segLen) {
+				// medium scattering event
+				float tEvent = tEnter + tSample;
+
+				// beta *= Tr(tSample) * (sigma_s / sigma_t)
+				COR::Vec3 Tr = med.Tr(tSample);
+
+				COR::Vec3 albedo{
+					(med.sigma_t.x > 0.0f) ? (med.sigma_s.x / med.sigma_t.x) : 0.0f,
+					(med.sigma_t.y > 0.0f) ? (med.sigma_s.y / med.sigma_t.y) : 0.0f,
+					(med.sigma_t.z > 0.0f) ? (med.sigma_s.z / med.sigma_t.z) : 0.0f
+				};
+
+				paths.beta[i] = paths.beta[i] * albedo;
+				//paths.beta[i] = paths.beta[i] * (Tr * albedo);
+
+				hits.eventType[i] = 2;
+				hits.hitFlag[i] = 1;
+				hits.t[i] = tEvent;
+				hits.p[i] = r.at(tEvent);
+				hits.n[i] = COR::Vec3{ 0.0f };
+				hits.materialId[i] = -1;
+
+				mediumList.push_back(i);
+			}
+			else {
+				// no scattering before surface/miss: beta *= Tr(segLen)
+				//paths.beta[i] = paths.beta[i] * med.Tr(segLen);
+
+				if (hits.hitFlag[i]) { hits.eventType[i] = 1; surfaceList.push_back(i); }
+				else { hits.eventType[i] = 0; missListFinal.push_back(i); }
+			}
+		}
+	}
+
 	static void miss_stage(PathSoA& paths, const std::vector<int>& missList) {
 		// closed scene: miss => terminate with black
 		for (int i : missList) {
@@ -139,7 +243,7 @@ namespace {
 	}
 
 	static void emissive_stage(
-		const COR::World& world,
+		const COR::Scene& scene,
 		PathSoA& paths,
 		const HitSoA& hits,
 		const std::vector<int>& hitList,
@@ -150,7 +254,7 @@ namespace {
 		for (int i : hitList) {
 			if (!paths.alive[i]) continue;
 
-			const COR::Material& mat = world.materials[hits.materialId[i]];
+			const COR::Material& mat = scene.materials[hits.materialId[i]];
 			if (!mat.isEmissive()) {
 				nonEmissiveList.push_back(i);
 				continue;
@@ -161,7 +265,7 @@ namespace {
 				paths.L[i] += paths.beta[i] * mat.emitted();
 			}
 			else {
-				float pdfLight = world.pdfLight(paths.prevP[i], paths.prevWi[i]);
+				float pdfLight = scene.pdfLight(paths.prevP[i], paths.prevWi[i]);
 				float w = COR::powerHeuristic(paths.prevPdfBsdf[i], pdfLight);
 				paths.L[i] += paths.beta[i] * mat.emitted() * w;
 			}
@@ -169,20 +273,66 @@ namespace {
 		}
 	}
 
+	static void medium_direct_lighting_stage(
+		const COR::Scene& scene,
+		PathSoA& paths,
+		const HitSoA& hits,
+		const std::vector<int>& mediumList
+	) {
+		if (!scene.hasLights()) return;
+		if (!scene.hasMedium()) return;
+
+		const COR::HomogeneousMedium& med = *scene.medium;
+
+		for (int i : mediumList) {
+			if (!paths.alive[i]) continue;
+
+			COR::Vec3 p = hits.p[i];	// medium point
+			COR::Vec3 wo = COR::normalize(-paths.rayD[i]);
+
+			COR::LightSample ls = scene.sampleOneLight(p, paths.rng[i]);
+			if (ls.pdf <= 0.0f) continue;
+
+			// phase eval/pdf
+			float phaseVal = med.phase.eval(wo, ls.wi);
+			float pdfPhase = med.phase.pdf(wo, ls.wi);
+			if (pdfPhase <= 0.0f || phaseVal <= 0.0f) continue;
+
+			float w = COR::powerHeuristic(ls.pdf, pdfPhase);
+
+			//visibility
+			COR::Vec3 o = p + ls.wi * EPS;
+			COR::Ray shadowRay{ o, ls.wi };
+			COR::HitRecord tmp;
+			bool blocked = scene.intersect(shadowRay, EPS, ls.dist - 2.0f * EPS, tmp);
+			if (blocked) continue;
+
+			// medium transmittance alnge shadow segment inside medium bounds
+			float lenIn = medium_segment_length(scene.mediumBounds, shadowRay, EPS, ls.dist - 2.0f * EPS);
+			COR::Vec3 Tr = med.Tr(lenIn);
+
+			// Ld = beta * phase * Le * Tr / pdf_light * w
+			paths.L[i] += paths.beta[i] * (phaseVal * (1.0f / ls.pdf)) * (ls.Le * Tr) * w;
+		}
+	}
+
 	static void direct_lighting_stage(
-		const COR::World& world,
+		const COR::Scene& scene,
 		PathSoA& paths,
 		const HitSoA& hits,
 		const std::vector<int>& nonEmissiveList,
 		ShadowBatch& shadow
 	) {
 		shadow.clear();
-		if (!world.hasLights()) return;
+		if (!scene.hasLights()) return;
+
+		const bool useMedium = scene.hasMedium();
+		const COR::HomogeneousMedium* med = useMedium ? scene.medium.get() : nullptr;
 
 		for (int i : nonEmissiveList) {
 			if (!paths.alive[i]) continue;
 
-			const COR::Material& mat = world.materials[hits.materialId[i]];
+			const COR::Material& mat = scene.materials[hits.materialId[i]];
 
 			// Only do NEE for non-delta BSDFs (diffuse/glossy)
 			if (mat.isDelta()) continue;
@@ -192,7 +342,7 @@ namespace {
 			// wo is direction toward the camera/previous vertex
 			COR::Vec3 wo = COR::normalize(-paths.rayD[i]);
 
-			COR::LightSample ls = world.sampleOneLight(p, paths.rng[i]);
+			COR::LightSample ls = scene.sampleOneLight(p, paths.rng[i]);
 			if (ls.pdf <= 0.0f) continue;
 
 			float cosOnSurface = dot(hits.n[i], ls.wi);
@@ -210,6 +360,12 @@ namespace {
 			// Ld = beta * f * Le * cos / pdf_light * w
 			COR::Vec3 c = paths.beta[i] * f * ls.Le * (cosOnSurface / ls.pdf) * w;
 
+			if (useMedium) {
+				COR::Ray shadowRay{ p, ls.wi };
+				float lenIn = medium_segment_length(scene.mediumBounds, shadowRay, EPS, ls.dist - 2.0f * EPS);
+				c = c * med->Tr(lenIn);
+			}
+
 			shadow.pathIdx.push_back(i);
 			shadow.o.push_back(p);
 			shadow.d.push_back(ls.wi);
@@ -219,7 +375,7 @@ namespace {
 	}
 
 	static void shadow_trace_stage(
-		const COR::World& world,
+		const COR::Scene& scene,
 		PathSoA& paths,
 		const ShadowBatch& shadow
 	) {
@@ -230,7 +386,7 @@ namespace {
 			COR::Ray r{ shadow.o[k], shadow.d[k] };
 
 			COR::HitRecord tmp;
-			bool blocked = world.intersect(r, EPS, shadow.tMax[k] - 2.0f * EPS, tmp);
+			bool blocked = scene.intersect(r, EPS, shadow.tMax[k] - 2.0f * EPS, tmp);
 			if (!blocked) {
 				paths.L[i] += shadow.contrib[k];
 			}
@@ -238,7 +394,7 @@ namespace {
 	}
 
 	static void bsdf_sample_spawn_stage(
-		const COR::World& world,
+		const COR::Scene& scene,
 		PathSoA& paths,
 		const HitSoA& hits,
 		const std::vector<int>& nonEmissiveList,
@@ -251,7 +407,7 @@ namespace {
 		for (int i : nonEmissiveList) {
 			if (!paths.alive[i]) continue;
 
-			const COR::Material& mat = world.materials[hits.materialId[i]];
+			const COR::Material& mat = scene.materials[hits.materialId[i]];
 
 			COR::Vec3 p = hits.p[i] + hits.n[i] * EPS;
 			COR::Vec3 n = hits.n[i];
@@ -305,13 +461,72 @@ namespace {
 			nextActive.push_back(i);
 		}
 	}
+
+	static void phase_sample_spawn_stage(
+		const COR::Scene& scene,
+		PathSoA& paths,
+		HitSoA& hits,
+		const std::vector<int>& mediumList,
+		std::vector<int>& nextActive,
+		int depth
+	) {
+		nextActive.clear();
+		nextActive.reserve(mediumList.size());
+
+		if (!scene.hasMedium()) return;
+		const COR::HomogeneousMedium& med = *scene.medium;
+
+		for (int i : mediumList) {
+			if (!paths.alive[i]) continue;
+
+			COR::Vec3 p = hits.p[i];
+			COR::Vec3 wo = COR::normalize(-paths.rayD[i]);
+
+			COR::PhaseSample ps;
+			if (!med.phase.sample(wo, paths.rng[i], ps)) {
+				paths.alive[i] = 0;
+				continue;
+			}
+			if (ps.pdf <= 0.0f) {
+				paths.alive[i] = 0;
+				continue;
+			}
+
+			COR::Vec3 wi = COR::normalize(ps.wi);
+
+			// throughput update: beta *= p/pdf
+			paths.beta[i] = paths.beta[i] * (ps.p / ps.pdf);
+
+			// spawn next ray
+			paths.rayO[i] = p + wi * EPS;
+			paths.rayD[i] = wi;
+
+			// MIS bookkeeping
+			paths.prevSpecular[i] = 0;
+			paths.prevPdfBsdf[i] = ps.pdf;
+			paths.prevP[i] = p;
+			paths.prevWi[i] = wi;
+
+			// Russian roulette
+			if (depth >= 5) {
+				float m = std::fmax(paths.beta[i].x, std::fmax(paths.beta[i].y, paths.beta[i].z));
+				float pRR = COR::clamp(m, 0.05f, 0.95f);
+				if (paths.rng[i].nextFloat01() > pRR) {
+					paths.alive[i] = 0;
+					continue;
+				}
+				paths.beta[i] = paths.beta[i] * (1.0f / pRR);
+			}
+			nextActive.push_back(i);
+		}
+	}
 }
 
 namespace COR {
 	void render_tile_wavefront_sample(
 		Film& film,
 		const Camera& cam,
-		const World& world,
+		const Scene& scene,
 		int W, int H,
 		int tileX0, int tileY0, int tileX1, int tileY1,
 		int sampleIndex,
@@ -361,20 +576,36 @@ namespace COR {
 			}
 		}
 
-		std::vector<int> hitList, missList, nonEmissiveList, nextActive;
-		hitList.reserve(N); missList.reserve(N); nonEmissiveList.reserve(N);  nextActive.reserve(N);
+		std::vector<int> hitList, missList;
+		std::vector<int> surfaceList, mediumList, missListFinal;
+		std::vector<int> nonEmissiveList;
+		std::vector<int> nextActiveSurface, nextActiveMedium, nextActive;
 
-		ShadowBatch shadow;
+		hitList.reserve(N); missList.reserve(N); 
+		surfaceList.reserve(N); mediumList.reserve(N); missListFinal.reserve(N);
+		nonEmissiveList.reserve(N); 
+		nextActiveSurface.reserve(N); nextActiveMedium.reserve(N); nextActive.reserve(N);
 
 		for (int depth = 0; depth < maxDepth && !active.empty(); ++depth) {
-			intersect_stage(world, paths, hits, active, hitList, missList);
-			miss_stage(paths, missList);
-			emissive_stage(world, paths, hits, hitList, nonEmissiveList);
+			intersect_stage(scene, paths, hits, active, hitList, missList);
+			medium_stage(scene, paths, hits, active, surfaceList, mediumList, missListFinal);
+			miss_stage(paths, missListFinal);
+			emissive_stage(scene, paths, hits, surfaceList, nonEmissiveList);
 
-			direct_lighting_stage(world, paths, hits, nonEmissiveList, shadow);
-			shadow_trace_stage(world, paths, shadow);
+			ShadowBatch shadow;
+			direct_lighting_stage(scene, paths, hits, nonEmissiveList, shadow);
+			shadow_trace_stage(scene, paths, shadow);
 
-			bsdf_sample_spawn_stage(world, paths, hits, nonEmissiveList, nextActive, depth);
+			medium_direct_lighting_stage(scene, paths, hits, mediumList);
+
+			bsdf_sample_spawn_stage(scene, paths, hits, nonEmissiveList, nextActiveSurface, depth);
+			phase_sample_spawn_stage(scene, paths, hits, mediumList, nextActiveMedium, depth);
+
+			nextActive.clear();
+			nextActive.reserve(nextActiveSurface.size() + nextActiveMedium.size());
+			nextActive.insert(nextActive.end(), nextActiveSurface.begin(), nextActiveSurface.end());
+			nextActive.insert(nextActive.end(), nextActiveMedium.begin(), nextActiveMedium.end());
+
 			active.swap(nextActive);
 		}
 

@@ -44,5 +44,27 @@ namespace COR {
 			slab(r.o.z, r.d.z, mn.z, mx.z); if (tMax <= tMin) return false;
 			return true;
 		}
+
+		bool intersectRange(const Ray& r, float tMin, float tMax, float& tEnter, float& tExit) const {
+			float t0 = tMin;
+			float t1 = tMax;
+
+			auto slab = [&](float ro, float rd, float mnv, float mxv) {
+				float inv = (std::fabs(rd) > 1e-12f) ? (1.0f / rd) : 1e30f;
+				float a = (mnv - ro) * inv;
+				float b = (mxv - ro) * inv;
+				if (inv < 0.0f) std::swap(a, b);
+				t0 = std::max(t0, a);
+				t1 = std::min(t1, b);
+			};
+
+			slab(r.o.x, r.d.x, mn.x, mx.x); if (t1 <= t0) return false;
+			slab(r.o.y, r.d.y, mn.y, mx.y); if (t1 <= t0) return false;
+			slab(r.o.z, r.d.z, mn.z, mx.z); if (t1 <= t0) return false;
+
+			tEnter = t0;
+			tExit = t1;
+			return true;
+		}
 	};
 }

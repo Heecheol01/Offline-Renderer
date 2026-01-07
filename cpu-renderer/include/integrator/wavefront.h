@@ -5,13 +5,13 @@
 namespace COR {
 	struct Film;
 	struct Camera;
-	struct World;
+	struct Scene;
 
 	// wavefront integrator: render exactly 1 sample for pixels inside a tile
 	void render_tile_wavefront_sample(
 		Film& film,
 		const Camera& cam,
-		const World& world,
+		const Scene& scene,
 		int W, int H,
 		int tileX0, int tileY0, int tileX1, int tileY1,
 		int sampleIndex,

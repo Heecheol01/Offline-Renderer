@@ -4,7 +4,7 @@
 #include <cmath>
 
 namespace COR {
-    Vec3 trace_path_mis(const Ray& r0, const World& world, RNG& rng, int maxDepth) {
+    Vec3 trace_path_mis(const Ray& r0, const Scene& scene, RNG& rng, int maxDepth) {
         const float eps = 0.001f;
 
         Ray r = r0;
@@ -18,11 +18,11 @@ namespace COR {
 
         for (int depth = 0; depth < maxDepth; ++depth) {
             HitRecord rec;
-            if (!world.intersect(r, eps, 1e30f, rec)) {
+            if (!scene.intersect(r, eps, 1e30f, rec)) {
                 break; // closed scene => black
             }
 
-            const Material& mat = world.materials[rec.materialId];
+            const Material& mat = scene.materials[rec.materialId];
 
             // Light hit (emission) with MIS
             if (mat.type == MaterialType::Emissive) {
@@ -30,7 +30,7 @@ namespace COR {
                     L += beta * mat.emitted();
                 }
                 else {
-                    float pdfLight = world.pdfLight(prevP, prevWi);
+                    float pdfLight = scene.pdfLight(prevP, prevWi);
                     float w = powerHeuristic(prevPdfBsdf, pdfLight);
                     L += beta * mat.emitted() * w;
                 }
@@ -41,11 +41,11 @@ namespace COR {
             Vec3 p = rec.p + rec.n * eps;
 
             // Direct lighting: light sampling + MIS weight (diffuse only)
-            if (mat.type == MaterialType::Lambert && world.hasLights()) {
-                LightSample ls = world.sampleOneLight(p, rng);
+            if (mat.type == MaterialType::Lambert && scene.hasLights()) {
+                LightSample ls = scene.sampleOneLight(p, rng);
                 if (ls.pdf > 0.0f) {
                     float cosOnSurface = dot(rec.n, ls.wi);
-                    if (cosOnSurface > 0.0f && world.visible(p, ls.wi, ls.dist)) {
+                    if (cosOnSurface > 0.0f && scene.visible(p, ls.wi, ls.dist)) {
                         Vec3 f = mat.albedo * (1.0f / PI);
                         float pdfBsdf = cosOnSurface / PI; // Lambert pdf
                         float w = powerHeuristic(ls.pdf, pdfBsdf);

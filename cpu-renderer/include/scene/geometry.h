@@ -8,11 +8,10 @@
 #include "core/rng.h"
 #include "core/random.h"
 #include "scene/aabb.h"
+#include "core/constants.h"
 #include <cmath>
 
 namespace COR {
-    static constexpr float PI = 3.1415926535f;
-
     struct Shape {
         virtual ~Shape() = default;
 

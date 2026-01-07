@@ -1,4 +1,4 @@
-// include/scene/world.h
+// include/scene/scene.h
 
 #pragma once
 
@@ -22,7 +22,7 @@ namespace COR {
 		Vec3 Le;		// radiance
 	};
 
-	struct World {
+	struct Scene {
 		std::vector<std::unique_ptr<Primitive>> primitives;
 		std::vector<Material> materials;
 

@@ -5,12 +5,13 @@
 #include "core/onb.h"
 #include "core/sampling.h"
 #include "core/random.h"
+#include "core/constants.h"
 
 #include <cmath>
 
 namespace COR {
 	Vec3 Material::evalBSDF(const Vec3& wo, const Vec3& wi, const Vec3& n) const {
-		(void)wo; (void)wi;
+		(void)wo; (void)wi; (void)n;
 		if (type == MaterialType::Lambert) {
 			return albedo * (1.0f / PI);
 		}

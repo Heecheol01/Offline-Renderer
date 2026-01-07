@@ -1,4 +1,4 @@
-// include/scene/world.h
+// cpu-renderer/include/scene/scene.h
 
 #pragma once
 
@@ -11,6 +11,7 @@
 #include "scene/hit.h"
 #include "scene/primitive.h"
 #include "scene/triangle_ref.h"
+#include "scene/medium.h"
 #include "core/ray.h"
 
 namespace COR {
@@ -22,13 +23,15 @@ namespace COR {
 		Vec3 Le;		// radiance
 	};
 
-	struct World {
+	struct Scene {
 		std::vector<std::unique_ptr<Primitive>> primitives;
 		std::vector<Material> materials;
 
 		std::vector<int> lightIds;
 
 		std::unique_ptr<Primitive> accel;
+		std::unique_ptr<HomogeneousMedium> medium;
+		AABB mediumBounds;
 
 		template <class ShapeT, class... Args>
 		void addShape(int materialId, Args&&... args) {
@@ -180,6 +183,10 @@ namespace COR {
 				auto triShape = std::make_shared<TriangleRef>(storage, i);
 				primitives.emplace_back(std::make_unique<GeometricPrimitive>(triShape, materialId));
 			}
+		}
+
+		bool hasMedium() const {
+			return (bool)medium && (medium->sigma_t.x > 0.0f || medium->sigma_t.y > 0.0f || medium->sigma_t.z > 0.0f);
 		}
 	};
 }
