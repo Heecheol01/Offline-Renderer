@@ -4,8 +4,8 @@
 
 #include "core/onb.h"
 #include "core/sampling.h"
-#include "core/random.h"
 #include "core/constants.h"
+#include "core/optics.h"
 
 #include <cmath>
 

@@ -1,32 +1,22 @@
-add_library(or_cpu STATIC)
+# cpu-renderer/CMakeLists.txt
 
-target_sources(or_cpu
+# 소스 수집 (apps/main.cpp는 별도로 주는 걸 권장)
+file(GLOB_RECURSE CPU_RENDER_SOURCES CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cxx"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h"
+)
+
+add_executable(render_cpu
+  apps/main.cpp
+  ${CPU_RENDER_SOURCES}
+)
+
+target_link_libraries(render_cpu PRIVATE common)
+
+target_include_directories(render_cpu
   PRIVATE
-  src/accel/bvh.cpp
-  src/film/film.cpp
-  src/integrator/path_trace_mis.cpp
-  src/integrator/wavefront.cpp
-  src/io/write_image.cpp
-  src/io/obj_loader.cpp
-  src/scene/camera.cpp
-  src/scene/material.cpp
-  src/scene/mesh.cpp
-  src/scene/triangle_ref.cpp
-  src/util/render_progress.cpp
-  src/util/tinyobjloader_impl.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
-
-target_include_directories(or_cpu
-  PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-)
-
-target_link_libraries(or_cpu
-  PUBLIC
-    or_common
-    or_build_options
-)
-
-target_compile_definitions(or_cpu PUBLIC OR_BACKEND_CPU=1)
-
-add_subdirectory(apps)

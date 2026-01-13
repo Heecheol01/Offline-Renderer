@@ -12,7 +12,6 @@
 #include "core/ray.h"
 #include "core/vector.h"
 #include "core/rng.h"
-#include "core/random.h"
 #include "core/sampling.h"
 
 #include <vector>
