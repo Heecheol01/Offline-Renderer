@@ -10,7 +10,7 @@ namespace COR {
         struct UVec3 { uint32_t x, y, z; };
 
         std::vector<Vec3> positions;     // unified vertex buffer
-        std::vector<Vec3> normals;       // same size as positions (¾øÀ¸¸é 0)
+        std::vector<Vec3> normals;       // same size as positions
         std::vector<UVec3> indices;      // triangles
         std::vector<int> triMaterialId;  // triangle count == indices.size()
     };

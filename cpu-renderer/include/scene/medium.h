@@ -60,7 +60,5 @@ namespace COR {
 				std::exp(-sigma_t.z * dist)
 			};
 		}
-
-
 	};
 }

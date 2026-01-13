@@ -3,6 +3,7 @@
 
 #include "core/vector.h"
 #include "core/ray.h"
+#include "core/constants.h"
 #include <cmath>
 
 namespace COR {
@@ -13,8 +14,7 @@ namespace COR {
 		Vec3 vertical;
 
 		Camera(const Vec3& lookfrom, const Vec3& lookat, const Vec3& vup, float vfov_degrees, float aspect) {
-			const float pi = 3.1415926535f;
-			const float theta = vfov_degrees * (pi / 180.0f);
+			const float theta = vfov_degrees * (PI / 180.0f);
 			const float h = std::tan(theta * 0.5f);
 
 			const float viewport_height = 2.0f * h;

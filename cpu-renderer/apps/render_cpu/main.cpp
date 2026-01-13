@@ -15,7 +15,6 @@
 #include "integrator/wavefront.h"
 
 #include "io/obj_loader.h"
-#include "scene/mesh.h"
 
 #include <iostream>
 

@@ -30,8 +30,8 @@ namespace COR {
 		Vec3 albedo{ 1.0f };
 		Vec3 emission{ 0.0f };
 
-		float fuzz = 0.0f;
-		float ir = 1.5f;
+		float fuzz = 0.0f;		// roughness
+		float ir = 1.5f;		// index of refraction ±¼Àý·ü
 
 		bool isEmissive() const { return type == MaterialType::Emissive; }
 		bool isDelta() const { return (type == MaterialType::Metal) || (type == MaterialType::Dielectric); }

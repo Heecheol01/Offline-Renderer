@@ -26,6 +26,10 @@ output/
 *.iso
 *.a
 *.o
+*.vdb
+*.exr
+*.png
+*.xml
 
 # --- CMake Specific ---
 CMakeCache.txt

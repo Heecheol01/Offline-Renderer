@@ -65,12 +65,12 @@ namespace {
 
 	struct HitSoA {
 		// hit data per path
-		std::vector<uint8_t> hitFlag;
+		std::vector<uint8_t> hitFlag;		// 0 = miss, 1 = alive
 		std::vector<float> t;
 		std::vector<COR::Vec3> p;
 		std::vector<COR::Vec3> n;
 		std::vector<int> materialId;
-		std::vector<uint8_t> eventType;
+		std::vector<uint8_t> eventType;		// 0 = miss, 1 = surface, 2 = medium
 
 		void resize(size_t k) {
 			hitFlag.resize(k);
@@ -175,7 +175,7 @@ namespace {
 		}
 
 		for (int i : active) {
-			if (!paths.alive[i]) { hits.eventType[i] = 0; missListFinal.push_back(i); }
+			if (!paths.alive[i]) { hits.eventType[i] = 0; missListFinal.push_back(i); continue; }
 
 			COR::Ray r{ paths.rayO[i], paths.rayD[i] };
 
@@ -214,7 +214,6 @@ namespace {
 				};
 
 				paths.beta[i] = paths.beta[i] * albedo;
-				//paths.beta[i] = paths.beta[i] * (Tr * albedo);
 
 				hits.eventType[i] = 2;
 				hits.hitFlag[i] = 1;
